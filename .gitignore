@@ -32,3 +32,8 @@
 # Debug files
 *.dSYM/
 
+# Project specific
+build/
+bin/
+include/
+lib/

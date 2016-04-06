@@ -1,6 +1,7 @@
 # boilermake: A reusable, but flexible, boilerplate Makefile.
 #
 # Copyright 2008, 2009, 2010 Dan Moulding, Alan T. DeKok
+#           2016             Felix Werner
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,19 +29,25 @@
 #       accomodate the double expansion that occurs when eval is invoked.
 
 # Colourise build messages
-BUILD_CC_MSG = @printf "\e[1;33mBuilding C object $@...\e[0m\n"
-BUILD_CXX_MSG = @printf "\e[1;33mBuilding C++ object $@...\e[0m\n"
-BUILD_AR_MSG = @printf "\e[1;33mBuilding static library $$@...\e[0m\n"
-LINK_MSG = @printf "\e[1;33mLinking executable $$@...\e[0m\n"
+BUILD_CC_MSG = \e[32mBuilding C object $@...\e[0m\n"
+BUILD_CXX_MSG = \e[32mBuilding C++ object $@...\e[0m\n"
+BUILD_AR_MSG = \e[1;32mLinking static library $$@...\e[0m\n"
+LINK_MSG = \e[1;32mLinking executable $$@...\e[0m\n"
 
-# Control verbosity via VERBOSE variable
-ARFLAGS := rc
+# Add counters to build messages
+ifndef ECHO
+    T := $(shell $(MAKE) $(MAKECMDGOALS) --no-print-directory \
+          -nf $(firstword $(MAKEFILE_LIST)) \
+          ECHO="__MK_COUNT__" | grep -c "__MK_COUNT__")
+    N := x
+    C = $(words $N)$(eval N := x $N)
+    ECHO = printf "[$C/$T]
+endif
+
+# Control verbosity via VERBOSE environment variable
 ifndef VERBOSE
-	AT := @
-else
-	AT_0 := @
-	AT_1 :=
-	AT = $(AT_$(VERBOSE))
+ARFLAGS := rc
+.SILENT:
 endif
 
 # ADD_CLEAN_RULE - Parameterized "function" that adds a new rule and phony
@@ -84,8 +91,8 @@ define ADD_TARGET_RULE
         # Add a target for creating a static library.
         $${TARGET_DIR}/${1}: $${${1}_OBJS}
 	    @mkdir -p $$(dir $$@)
-	    $(BUILD_AR_MSG)
-	    $$(strip ${AT}$${AR} $${ARFLAGS} $$@ $${${1}_OBJS})
+	    @$${ECHO} ${BUILD_AR_MSG}
+	    $$(strip $${AR} $${ARFLAGS} $$@ $${${1}_OBJS})
 	    $${${1}_POSTMAKE}
     else
         # Add a target for linking an executable. First, attempt to select the
@@ -106,8 +113,8 @@ define ADD_TARGET_RULE
 
         $${TARGET_DIR}/${1}: $${${1}_OBJS} $${${1}_PREREQS}
 	    @mkdir -p $$(dir $$@)
-	    $(LINK_MSG)
-	    $$(strip ${AT}$${${1}_LINKER} -o $$@ $${LDFLAGS} $${${1}_LDFLAGS} \
+	    @$${ECHO} ${LINK_MSG}
+	    $$(strip $${${1}_LINKER} -o $$@ $${LDFLAGS} $${${1}_LDFLAGS} \
 	        $${${1}_OBJS} $${LDLIBS} $${${1}_LDLIBS})
 	    $${${1}_POSTMAKE}
     endif
@@ -126,8 +133,8 @@ endef
 # COMPILE_C_CMDS - Commands for compiling C source code.
 define COMPILE_C_CMDS
 	@mkdir -p $(dir $@)
-	$(BUILD_CC_MSG)
-	$(strip ${AT}${CC} -o $@ -c -MD ${CFLAGS} ${SRC_CFLAGS} ${INCDIRS} \
+	@${ECHO} ${BUILD_CC_MSG}
+	$(strip ${CC} -o $@ -c -MD ${CFLAGS} ${SRC_CFLAGS} ${INCDIRS} \
 	    ${SRC_INCDIRS} ${SRC_DEFS} ${DEFS} $<)
 	@cp ${@:%$(suffix $@)=%.d} ${@:%$(suffix $@)=%.P}; \
 	 sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
@@ -139,8 +146,8 @@ endef
 # COMPILE_CXX_CMDS - Commands for compiling C++ source code.
 define COMPILE_CXX_CMDS
 	@mkdir -p $(dir $@)
-	$(BUILD_CXX_MSG)
-	$(strip ${AT}${CXX} -o $@ -c -MD ${CXXFLAGS} ${SRC_CXXFLAGS} ${INCDIRS} \
+	@${ECHO} ${BUILD_CXX_MSG}
+	$(strip ${CXX} -o $@ -c -MD ${CXXFLAGS} ${SRC_CXXFLAGS} ${INCDIRS} \
 	    ${SRC_INCDIRS} ${SRC_DEFS} ${DEFS} $<)
 	@cp ${@:%$(suffix $@)=%.d} ${@:%$(suffix $@)=%.P}; \
 	 sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
@@ -163,12 +170,13 @@ define INCLUDE_SUBMAKEFILE
     TGT_CXXFLAGS  :=
     TGT_DEFS      :=
     TGT_INCDIRS   :=
-    TGT_LDFLAGS   :=
-    TGT_LDLIBS    :=
     TGT_LINKER    :=
     TGT_POSTCLEAN :=
     TGT_POSTMAKE  :=
-    TGT_PREREQS   :=
+    # The following will come from the global stack:
+    # - TGT_PREREQS
+    # - TGT_LDLIBS
+    # - TGT_LDFLAGS
 
     SOURCES       :=
     SRC_CFLAGS    :=
@@ -185,6 +193,14 @@ define INCLUDE_SUBMAKEFILE
     DIR_STACK := $$(call PUSH,$${DIR_STACK},$${DIR})
 
     include ${1}
+
+    # Push variables onto stacks
+    PREREQS_STACK_P                   := $${PREREQS_STACK_P}.X
+    PREREQS_STACK.$${PREREQS_STACK_P} := $${TGT_PREREQS}
+    LDFLAGS_STACK_P                   := $${LDFLAGS_STACK_P}.X
+    LDFLAGS_STACK.$${LDFLAGS_STACK_P} := $${TGT_LDFLAGS}
+    LDLIBS_STACK_P                    := $${LDLIBS_STACK_P}.X
+    LDLIBS_STACK.$${LDLIBS_STACK_P}   := $${TGT_LDLIBS}
 
     # Initialize internal local variables.
     OBJS :=
@@ -289,6 +305,14 @@ define INCLUDE_SUBMAKEFILE
     # Reset the "current" directory to it's previous value.
     DIR_STACK := $$(call POP,$${DIR_STACK})
     DIR := $$(call PEEK,$${DIR_STACK})
+
+    # Pop the stack-maintained build variables
+    PREREQS_STACK_P := $(basename $${PREREQS_STACK_P})
+	TGT_PREREQS     := $${PREREQS_STACK.$(PREREQS_STACK_P)}
+    LDFLAGS_STACK_P := $(basename $${LDFLAGS_STACK_P})
+	TGT_LDFLAGS     := $${LDFLAGS_STACK.$(LDFLAGS_STACK_P)}
+    LDLIBS_STACK_P  := $(basename $${LDLIBS_STACK_P})
+	TGT_LDLIBS      := $${LDLIBS_STACK.$(LDLIBS_STACK_P)}
 endef
 
 # MIN - Parameterized "function" that results in the minimum lexical value of
@@ -355,6 +379,12 @@ DEFS :=
 DIR_STACK :=
 INCDIRS :=
 TGT_STACK :=
+PREREQS_STACK_P := X
+PREREQS_STACK.X :=
+LDLIBS_STACK_P := X
+LDLIBS_STACK.X :=
+LDFLAGS_STACK_P := X
+LDFLAGS_STACK.X :=
 
 # Include the main user-supplied submakefile. This also recursively includes
 # all other user-supplied submakefiles.
@@ -377,13 +407,13 @@ $(foreach TGT,${ALL_TGTS},\
 $(foreach TGT,${ALL_TGTS},\
   $(foreach EXT,${C_SRC_EXTS},\
     $(eval $(call ADD_OBJECT_RULE,${BUILD_DIR}/$(call CANONICAL_PATH,${TGT}),\
-             ${EXT},$${COMPILE_C_CMDS}))))
+             ${EXT} ${${TGT}_PREREQS},$${COMPILE_C_CMDS}))))
 
 # Add pattern rule(s) for creating compiled object code from C++ source.
 $(foreach TGT,${ALL_TGTS},\
   $(foreach EXT,${CXX_SRC_EXTS},\
     $(eval $(call ADD_OBJECT_RULE,${BUILD_DIR}/$(call CANONICAL_PATH,${TGT}),\
-             ${EXT},$${COMPILE_CXX_CMDS}))))
+             ${EXT} ${${TGT}_PREREQS},$${COMPILE_CXX_CMDS}))))
 
 # Add "clean" rules to remove all build-generated files.
 .PHONY: clean

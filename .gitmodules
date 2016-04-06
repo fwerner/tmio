@@ -1,3 +1,3 @@
 [submodule "externals/bufio"]
 	path = externals/bufio
-	url = http://hfm-1211e.dhcp.mpi-hd.mpg.de/fwerner/bufio.git
+	url = http://hfm-1211e/fwerner/bufio.git

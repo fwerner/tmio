@@ -666,8 +666,8 @@ TMIO_ETIMEDOUT Flush operation timed out
 
 
 /*
-  Internal helper function to skip the next frame. If a frame   header has
-  been buffered, skips the associated frame and clears   the buffer.
+  Internal helper function to skip the next frame. If a frame header has
+  been buffered, skips the associated frame and clears the buffer.
 
   Returns 0 on success, -1 on error and sets stream status.
 */

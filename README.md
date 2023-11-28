@@ -29,16 +29,16 @@ pointer or an integer >=0 (e.g., `tmio_write_data` and `tmio_read_data` return t
 
 ## Installation
 
-Run `make` to produce the C header file `include/tmio.h` and the static library `lib/libtmio.a`.
+Building requires `meson` and `ninja`.
 
-## Contributing
+If these are not available (or already shipped) via your OS package manager,
+it is possible to install them using `python3 -m pip install --user meson ninja`.
 
-This project is licensed under the Mozilla Public License 2.0, see [LICENSE](LICENSE) for the full terms of use. The MPL
-2.0 is a free-software license and we encourage you to feed back any improvements by submitting patches to the upstream
-maintainers (see Contact below).
+The `Makefile` is acting as a thin wrapper around the usual meson commands:
 
-The `Makefile` provided to build this project is licensed under the GNU General Public License 3.0.
-
-## Contact
-
-Please send your questions, bug reports or patches via e-mail to felix.werner@mpi-hd.mpg.de.
+- `make build`: creates the local build directory, default `build`
+- `make clean`: removes the build directory
+- `make`,`make compile`: depends on `build` and compiles the library
+- `make local`: reconfigures the build directory to install the library `pkg-config` definitions into `${HOME}/.local`
+- `make install`: installs the library
+- `make uninstall`: uninstalls the installed files defined in the `build` directory

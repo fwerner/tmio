@@ -1,6 +1,6 @@
 install_headers('tmio.h')
 
-tmio_sources = ['tmio.c']
+tmio_sources = files('tmio.c')
 
 tmio_lib = library('tmio',
   tmio_sources,

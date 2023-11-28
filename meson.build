@@ -1,13 +1,14 @@
 
 project('tmio', 'c', version:'1.0.0',
-    license:'MPL-2.0',
-    default_options : [
+  license:'MPL-2.0',
+  license_files: 'LICENSE',
+  default_options : [
     'warning_level=3',
     'c_std=c99',
     'buildtype=release',
-    'default_library=static',
+    'default_library=both',
     'prefer_static=true',
-   ]
+  ]
 )
 
 bufio_dep = dependency('bufio', fallback : ['bufio', 'bufio_dep'])
@@ -20,12 +21,5 @@ tmio_dep = declare_dependency(include_directories : tmio_inc, link_with : tmio_l
 subdir('examples')
 
 pkg_mod = import('pkgconfig')
-pkg_mod.generate(tmio_lib,
-    version : '1.0',
-    name : 'libtmio',
-    filebase : 'tmio',
-    description : 'The io library for all fc250b generated data files.'
-)
-
-
+pkg_mod.generate(tmio_lib)
 

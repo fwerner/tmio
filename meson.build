@@ -17,7 +17,8 @@ tmio_inc = include_directories('src')
 
 subdir('src')
 
-tmio_dep = declare_dependency(include_directories : tmio_inc, link_with : tmio_lib)
+tmio_dep = declare_dependency(include_directories : tmio_inc, link_with : tmio_lib, dependencies : [bufio_dep])
+
 subdir('examples')
 
 pkg_mod = import('pkgconfig')

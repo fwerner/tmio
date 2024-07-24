@@ -1045,6 +1045,18 @@ Returns the stream type (TMIO_FILE, TMIO_SOCKET, TMIO_PIPE).
   return stream->type;
 }
 
+/*=== Function ===============================================================*/
+
+void* tmio_stream_handle(tmio_stream *stream)
+
+/*--- Description ------------------------------------------------------------//
+
+Returns the pointer to the internal io library.
+
+//----------------------------------------------------------------------------*/
+{
+  return stream->f;
+}
 
 /*=== Function ===============================================================*/
 

@@ -114,6 +114,8 @@ int tmio_type(tmio_stream *stream)
 ;
 int tmio_monitor(tmio_stream *stream)
 ;
+void* tmio_stream_handle(tmio_stream *stream)
+;
 #ifdef __cplusplus
 }
 #endif // __cplusplus

@@ -21,6 +21,7 @@ tmio_dep = declare_dependency(include_directories : tmio_inc, link_with : tmio_l
 
 subdir('examples')
 
+subdir('tests')
+
 pkg_mod = import('pkgconfig')
 pkg_mod.generate(tmio_lib)
-

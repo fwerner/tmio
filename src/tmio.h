@@ -75,6 +75,9 @@ typedef struct {
   int datamissing;
   int dataskipped;
   int tagsskipped;
+  unsigned long byteswritten;
+  unsigned long bytesread;
+  unsigned long bytesskipped;
 } tmio_stream;
 
 tmio_stream *tmio_init(const char *protocol, int protocol_timeout, int bufkb,

@@ -219,9 +219,7 @@ in future revisions.
   stream->debug = debug;
   stream->iobufsize = bufkb > 0 ? bufkb * 1024 : 0;
   stream->protocol_timeout = protocol_timeout;
-  strncpy(stream->protocol, protocol, strlen(protocol) < TMIO_PROTOCOL_SIZE - 1
-                                          ? strlen(protocol)
-                                          : TMIO_PROTOCOL_SIZE - 1);
+  strncpy(stream->protocol, protocol, TMIO_PROTOCOL_SIZE - 1);
 
   if (debug > 1)
     fprintf(stderr, "tmio_init: context initialized with protocol %s\n",

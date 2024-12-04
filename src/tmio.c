@@ -408,6 +408,50 @@ TMIO_EHANDSHAKE Error while writing protocol
   return stream->type;
 }
 
+/* Internal helper function to read the protocol string check for match */
+static int tmio_read_protocol(tmio_stream *stream)
+{
+  buftcpfile *fp = (buftcpfile *) stream->f;
+  // Read protocol
+  int protocol_tag;
+  char protocol[TMIO_PROTOCOL_SIZE] = {0};
+  if (buftcpread(&protocol_tag, sizeof(protocol_tag), fp) !=
+          sizeof(protocol_tag) ||
+      protocol_tag != TMIO_PROTOCOL_TAG ||
+      buftcpread(protocol, TMIO_PROTOCOL_SIZE, fp) != TMIO_PROTOCOL_SIZE) {
+    stream->status = TMIO_EHANDSHAKE;
+    if (stream->debug)
+      fprintf(stderr, "tmio_read_protocol: protocol handshake failed,"
+              "received protocol tag %d with protocol string %s\n",
+              protocol_tag, protocol);
+
+    tmio_close(stream);
+    return -1;
+  }
+  stream->bytesread += sizeof(protocol_tag) + TMIO_PROTOCOL_SIZE;
+
+  // Sanitise input
+  protocol[TMIO_PROTOCOL_SIZE - 1] = 0;
+  const int protocol_len = strlen(stream->protocol);
+
+  // Compare up to strlen(requested protocol) bytes
+  if (strncmp(protocol, stream->protocol, protocol_len) != 0) {
+    stream->status = TMIO_EPROTO;
+    if (stream->debug)
+      fprintf(stderr, "tmio_read_protocol: peer has wrong protocol %s,"
+              "expected %s\n", protocol, stream->protocol);
+    return -1;
+  }
+
+  if (stream->debug > 1)
+    fprintf(stderr, "tmio_read_protocol: protocol handshake successful,"
+            "received protocol tag %d with protocol string %s\n",
+            protocol_tag, protocol);
+
+  // Copy hidden messages in protocol string ;)
+  strncpy(stream->protocol, protocol, TMIO_PROTOCOL_SIZE);
+  return 0;
+}
 
 /*=== Function ===============================================================*/
 
@@ -459,40 +503,11 @@ TMIO_EPROTO     Protocols do not match
 
   tmio_init_stream(stream, fp);
 
-  // Read protocol
-  int protocol_tag;
-  char protocol[TMIO_PROTOCOL_SIZE] = {0};
-  if (buftcpread(&protocol_tag, sizeof(protocol_tag), fp) !=
-          sizeof(protocol_tag) ||
-      protocol_tag != TMIO_PROTOCOL_TAG ||
-      buftcpread(protocol, TMIO_PROTOCOL_SIZE, fp) != TMIO_PROTOCOL_SIZE) {
-    stream->status = TMIO_EHANDSHAKE;
-    if (stream->debug)
-      fprintf(stderr, "tmio_open: protocol handshake failed, received protocol tag %d with protocol string %s\n", protocol_tag, protocol);
-
-    tmio_close(stream);
-    return -1;
-  }
-  stream->bytesread += sizeof(protocol_tag) + TMIO_PROTOCOL_SIZE;
-
-  // Sanitise input
-  protocol[TMIO_PROTOCOL_SIZE - 1] = 0;
-
-  // Compare up to strlen(requested protocol) bytes
-  if (strncmp(protocol, stream->protocol,
-              strlen(stream->protocol) < TMIO_PROTOCOL_SIZE
-                  ? strlen(stream->protocol)
-                  : TMIO_PROTOCOL_SIZE) != 0) {
-    stream->status = TMIO_EPROTO;
-    if (stream->debug)
-      fprintf(stderr, "tmio_open: peer/file has wrong protocol %s\n", protocol);
-
+  if (tmio_read_protocol(stream)) {
     tmio_close(stream);
     return -1;
   }
 
-  // Copy protocol from peer
-  strncpy(stream->protocol, protocol, TMIO_PROTOCOL_SIZE);
 
   if (stream->debug > 1)
     fprintf(stderr, "tmio_open: connected file/peer %s\n", name);
@@ -852,8 +867,23 @@ TMIO_ETIMEDOUT A timeout occured while skipping a data frame
       return -1;
     }
 
-    if (frame_header < 0)
+    if (frame_header < 0) {
+      // have a tag
+      if (frame_header == TMIO_PROTOCOL_TAG) {
+        if (tmio_read_protocol(stream))
+          return -1; // protocol does not match
+        continue; //skip duplicate but allowed init tag
+
+      } else if (-frame_header > TMIO_MAX_TAG) {
+        // reserved region of tags. treat this as a read error
+        stream->status = TMIO_EREAD;
+        if (stream->debug)
+          fprintf(stderr, "tmio_read_tag: received forbidden tag %d\n",
+                  frame_header);
+        return -1;
+      }
       break;
+    }
 
     stream->bufferedheader = frame_header;
     stream->hasbufferedheader = 1;

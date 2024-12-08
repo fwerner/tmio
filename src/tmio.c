@@ -408,28 +408,31 @@ TMIO_EHANDSHAKE Error while writing protocol
   return stream->type;
 }
 
-/* Internal helper function to read the protocol string check for match */
+/* Internal helper function to read the protocol string and check for
+   protocol version match.
+
+   Returns 0 on success, or -1 on error.
+
+   On error, sets the stream status to:
+   TMIO_EHANDSHAKE Error while reading protocol string
+   TMIO_EPROTO     Protocols do not match
+*/
 static int tmio_read_protocol(tmio_stream *stream)
 {
   buftcpfile *fp = (buftcpfile *) stream->f;
-  // Read protocol
-  int protocol_tag;
-  char protocol[TMIO_PROTOCOL_SIZE] = {0};
-  if (buftcpread(&protocol_tag, sizeof(protocol_tag), fp) !=
-          sizeof(protocol_tag) ||
-      protocol_tag != TMIO_PROTOCOL_TAG ||
-      buftcpread(protocol, TMIO_PROTOCOL_SIZE, fp) != TMIO_PROTOCOL_SIZE) {
-    stream->status = TMIO_EHANDSHAKE;
-    if (stream->debug)
-      fprintf(stderr, "tmio_read_protocol: protocol handshake failed,"
-              "received protocol tag %d with protocol string %s\n",
-              protocol_tag, protocol);
 
-    tmio_close(stream);
+  char protocol[TMIO_PROTOCOL_SIZE] = {0};
+  if (buftcpread(protocol, TMIO_PROTOCOL_SIZE, fp) != TMIO_PROTOCOL_SIZE) {
+    stream->status = TMIO_EHANDSHAKE;
+    if (stream->debug) {
+      protocol[TMIO_PROTOCOL_SIZE - 1] = 0;
+      fprintf(stderr, "tmio_read_protocol: protocol handshake failed,"
+              "expected %s received %s\n", stream->protocol, protocol);
+    }
     return -1;
   }
-  stream->bytesread += sizeof(protocol_tag) + TMIO_PROTOCOL_SIZE;
 
+  stream->bytesread += TMIO_PROTOCOL_SIZE;
   // Sanitise input
   protocol[TMIO_PROTOCOL_SIZE - 1] = 0;
   const int protocol_len = strlen(stream->protocol);
@@ -444,12 +447,9 @@ static int tmio_read_protocol(tmio_stream *stream)
   }
 
   if (stream->debug > 1)
-    fprintf(stderr, "tmio_read_protocol: protocol handshake successful,"
-            "received protocol tag %d with protocol string %s\n",
-            protocol_tag, protocol);
+    fprintf(stderr, "tmio_read_protocol: protocol handshake successful: %s\n",
+            protocol);
 
-  // Copy hidden messages in protocol string ;)
-  strncpy(stream->protocol, protocol, TMIO_PROTOCOL_SIZE);
   return 0;
 }
 
@@ -503,11 +503,21 @@ TMIO_EPROTO     Protocols do not match
 
   tmio_init_stream(stream, fp);
 
+  int protocol_tag;
+  if (buftcpread(&protocol_tag, sizeof(protocol_tag), fp) !=
+          sizeof(protocol_tag) ||
+      protocol_tag != TMIO_PROTOCOL_TAG) {
+    if (stream->debug)
+      fprintf(stderr, "tmio_open: tmio protocol tag missing.\n");
+    stream->status = TMIO_EHANDSHAKE;
+    return -1;
+  }
+  stream->bytesread += sizeof(protocol_tag);
+
   if (tmio_read_protocol(stream)) {
     tmio_close(stream);
     return -1;
   }
-
 
   if (stream->debug > 1)
     fprintf(stderr, "tmio_open: connected file/peer %s\n", name);
@@ -821,6 +831,8 @@ int tmio_read_tag(tmio_stream *stream)
 Reads a tag from the stream of data. Skips any data frames when required.
 Since tags mark the beginning of a message, which in some protocols might come
 with any delay, a timeout does not mark the stream inoperable.
+If a new stream beginning is found, checks for protocol match, similar to
+tmio_open.
 
 //--- Return values ----------------------------------------------------------//
 
@@ -829,8 +841,10 @@ Returns the tag found. If a timeout occurs, 0 is returned. If an error occurs,
 
 //--- Errors -----------------------------------------------------------------//
 
-TMIO_EREAD     An error occured while reading
-TMIO_ETIMEDOUT A timeout occured while skipping a data frame
+TMIO_EREAD      An error occured while reading
+TMIO_ETIMEDOUT  A timeout occured while skipping a data frame
+TMIO_EHANDSHAKE Error while reading protocol
+TMIO_EPROTO     Protocols do not match
 
 //----------------------------------------------------------------------------*/
 {
@@ -870,9 +884,10 @@ TMIO_ETIMEDOUT A timeout occured while skipping a data frame
     if (frame_header < 0) {
       // have a tag
       if (frame_header == TMIO_PROTOCOL_TAG) {
+        stream->bytesread += sizeof(frame_header);
         if (tmio_read_protocol(stream))
           return -1; // protocol does not match
-        continue; //skip duplicate but allowed init tag
+        continue; // try again for next tag
 
       } else if (-frame_header > TMIO_MAX_TAG) {
         // reserved region of tags. treat this as a read error

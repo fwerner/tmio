@@ -113,6 +113,8 @@ int tmio_timeout(tmio_stream *stream, int protocol_timeout)
 ;
 const char *tmio_protocol(tmio_stream *stream)
 ;
+const char *tmio_current_protocol(tmio_stream *stream)
+;
 int tmio_type(tmio_stream *stream)
 ;
 int tmio_monitor(tmio_stream *stream)

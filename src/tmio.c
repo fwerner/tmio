@@ -132,6 +132,7 @@ typedef struct {
   int iobufsize;  // Size of the I/O buffer in Byte
 
   char protocol[TMIO_PROTOCOL_SIZE];  // Protocol identifier
+  char current_protocol[TMIO_PROTOCOL_SIZE];  // Protocol identifier read from the stream
   char skipbuf[TMIO_SKIPBUF_SIZE];  // Scratch buffer used for skipping data frames
 
   // Statistics
@@ -433,16 +434,18 @@ static int tmio_read_protocol(tmio_stream *stream)
   }
 
   stream->bytesread += TMIO_PROTOCOL_SIZE;
-  // Sanitise input
-  protocol[TMIO_PROTOCOL_SIZE - 1] = 0;
-  const int protocol_len = strlen(stream->protocol);
+
+  // Copy input into current_protocol before checking such that the user
+  // can inspect which protocol has been received. We never touch the last
+  // byte of current_protocol, which is calloc()ed to zero in tmio_init().
+  memcpy(stream->current_protocol, protocol, TMIO_PROTOCOL_SIZE - 1);
 
   // Compare up to strlen(requested protocol) bytes
-  if (strncmp(protocol, stream->protocol, protocol_len) != 0) {
+  if (strcmp(stream->current_protocol, stream->protocol) != 0) {
     stream->status = TMIO_EPROTO;
     if (stream->debug)
       fprintf(stderr, "tmio_read_protocol: peer has wrong protocol %s,"
-              "expected %s\n", protocol, stream->protocol);
+              "expected %s\n", stream->current_protocol, stream->protocol);
     return -1;
   }
 
@@ -831,8 +834,9 @@ int tmio_read_tag(tmio_stream *stream)
 Reads a tag from the stream of data. Skips any data frames when required.
 Since tags mark the beginning of a message, which in some protocols might come
 with any delay, a timeout does not mark the stream inoperable.
-If a new stream beginning is found, checks for protocol match, similar to
-tmio_open.
+
+If the start of a new stream is found, checks for protocol match in the same way
+as `tmio_open()` and updates `tmio_current_stream()` accordingly.
 
 //--- Return values ----------------------------------------------------------//
 
@@ -1082,13 +1086,35 @@ const char *tmio_protocol(tmio_stream *stream)
 
 /*--- Description ------------------------------------------------------------//
 
-Returns a pointer to the protocol identifier.
+Returns a pointer to the protocol identifier that has been requested
+with `tmio_init()`.
+
+After calling `tmio_open()` to open a stream for reading you may access the
+protocol identifier that has been received using `tmio_current_protocol()`.
 
 //----------------------------------------------------------------------------*/
 {
   return stream->protocol;
 }
 
+/*=== Function ===============================================================*/
+
+const char *tmio_current_protocol(tmio_stream *stream)
+
+/*--- Description ------------------------------------------------------------//
+
+Returns a pointer to the latest protocol identifier read from the stream.
+Initially this is an empty, null-terminated string. It is populated when
+`tmio_open()` is called and succeeds or returns EPROTO (in which case this
+function returns the received protocol identifier).
+
+The protocol identifier may change over time when reading multiple concatenated
+streams.
+
+//----------------------------------------------------------------------------*/
+{
+  return stream->current_protocol;
+}
 
 /*=== Function ===============================================================*/
 

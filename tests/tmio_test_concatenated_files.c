@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <sys/sendfile.h>
 
 #include <errno.h>
 #include <string.h>
@@ -168,12 +167,11 @@ int append_file(const char* destination_filename, const char* source_filename, i
 
     size_t fsize = filesize(source_filename);
 
-    // int rc = sendfile(destination, source, 0, fsize);
     int rc;
     while ((rc = fgetc(source)) != EOF)
       fputc(rc, destination);
     if (rc < 0 && rc != EOF) {
-      fprintf(stderr, "sendfile (%d): not all data was sent %d/%zu: %d/%s\n", count, rc, fsize, errno, strerror(errno));
+      fprintf(stderr, "Not all data was sent %d/%zu: %d/%s\n", count, fsize, errno, strerror(errno));
       return -1;
     }
     fclose(source);

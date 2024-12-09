@@ -365,7 +365,7 @@ tmio_status.
 //--- Errors -----------------------------------------------------------------//
 
 TMIO_ENOTCONN   Error while connecting
-TMIO_EHANDSHAKE Error while writing protocol
+TMIO_EHANDSHAKE Error while writing protocol identifier
 
 //----------------------------------------------------------------------------*/
 {
@@ -415,7 +415,7 @@ TMIO_EHANDSHAKE Error while writing protocol
    Returns 0 on success, or -1 on error.
 
    On error, sets the stream status to:
-   TMIO_EHANDSHAKE Error while reading protocol string
+   TMIO_EHANDSHAKE Error while reading protocol identifier
    TMIO_EPROTO     Protocols do not match
 */
 static int tmio_read_protocol(tmio_stream *stream)
@@ -425,11 +425,8 @@ static int tmio_read_protocol(tmio_stream *stream)
   char protocol[TMIO_PROTOCOL_SIZE] = {0};
   if (buftcpread(protocol, TMIO_PROTOCOL_SIZE, fp) != TMIO_PROTOCOL_SIZE) {
     stream->status = TMIO_EHANDSHAKE;
-    if (stream->debug) {
-      protocol[TMIO_PROTOCOL_SIZE - 1] = 0;
-      fprintf(stderr, "tmio_read_protocol: protocol handshake failed,"
-              "expected %s received %s\n", stream->protocol, protocol);
-    }
+    if (stream->debug)
+      fprintf(stderr, "tmio_read_protocol: protocol read failed");
     return -1;
   }
 
@@ -484,7 +481,7 @@ tmio_status.
 //--- Errors -----------------------------------------------------------------//
 
 TMIO_ENOTCONN   Error while connecting
-TMIO_EHANDSHAKE Error while reading protocol
+TMIO_EHANDSHAKE Error while reading protocol identifier
 TMIO_EPROTO     Protocols do not match
 
 //----------------------------------------------------------------------------*/
@@ -847,7 +844,7 @@ Returns the tag found. If a timeout occurs, 0 is returned. If an error occurs,
 
 TMIO_EREAD      An error occured while reading
 TMIO_ETIMEDOUT  A timeout occured while skipping a data frame
-TMIO_EHANDSHAKE Error while reading protocol
+TMIO_EHANDSHAKE Error while reading protocol identifier
 TMIO_EPROTO     Protocols do not match
 
 //----------------------------------------------------------------------------*/
@@ -886,21 +883,21 @@ TMIO_EPROTO     Protocols do not match
     }
 
     if (frame_header < 0) {
-      // have a tag
+      // Received a tag
       if (frame_header == TMIO_PROTOCOL_TAG) {
         stream->bytesread += sizeof(frame_header);
         if (tmio_read_protocol(stream))
-          return -1; // protocol does not match
-        continue; // try again for next tag
-
+          return -1;  // protocol does not match
+        continue;  // wait for next tag
       } else if (-frame_header > TMIO_MAX_TAG) {
-        // reserved region of tags. treat this as a read error
+        // Unknown tag in reserved region; treat this as a read error
         stream->status = TMIO_EREAD;
         if (stream->debug)
-          fprintf(stderr, "tmio_read_tag: received forbidden tag %d\n",
+          fprintf(stderr, "tmio_read_tag: received unknown reserved tag %d\n",
                   frame_header);
         return -1;
       }
+
       break;
     }
 

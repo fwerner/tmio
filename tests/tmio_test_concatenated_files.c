@@ -151,7 +151,7 @@ void main_reader(const char* name, const char* peer, int count)
   tmio_delete(stream);
 }
 
-int append_file(char* destination_filename, char* source_filename, int count) {
+int append_file(const char* destination_filename, const char* source_filename, int count) {
   FILE* destination = fopen(destination_filename, "a");
   if (!destination) {
     fprintf(stderr, "Couldn't open destination %s %d/%s\n", destination_filename, errno, strerror(errno));

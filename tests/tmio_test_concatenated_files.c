@@ -13,9 +13,7 @@ const int protocol_timeout = 3000;  // ms
 const int connect_timeout = -1;  // indefinite
 const int wait_timeout = 0;  // immediate
 const int verbosity = 3;  // 0...3 (silent...very verbose)
-const int debug = 0;
 const int buffersize = 0;  // 0: default size, >0: kByte
-const char* peer = "tmio_test_concatenated_files.dat";
 
 #define TAG 1
 #define LONG_MSG_SIZE (2)
@@ -84,7 +82,7 @@ void main_writer(const char* name, const char* peer)
   tmio_delete(stream);
 }
 
-tmio_stream *main_reader(const char* name, const char* peer, int count)
+tmio_stream *main_reader(const char* name, const char* peer, int n_concatenated_files)
 {
   unsigned long exp_read_bytes = 0;
   unsigned long exp_skipped_bytes = 0;
@@ -100,12 +98,11 @@ tmio_stream *main_reader(const char* name, const char* peer, int count)
   assert(strncmp(tmio_stream_protocol(stream), name, strlen(name)) == 0);
   assert(stream->bytesread == (exp_read_bytes += frame_header_size + TMIO_PROTOCOL_SIZE));
 
-  int iters = 0;
-  while (iters < count) {
+  int iterations = 0;
+  while (iterations < n_concatenated_files) {
     // 1. check tag size
     assert(tmio_read_tag(stream) == TAG);
-    assert(stream->bytesread == (exp_read_bytes += frame_header_size + (iters?1:0) * (frame_header_size + TMIO_PROTOCOL_SIZE)));
-    // assert(stream->bytesskipped == (exp_skipped_bytes += (iters?1:0) * (frame_header_size + TMIO_PROTOCOL_SIZE)));
+    assert(stream->bytesread == (exp_read_bytes += frame_header_size + (iterations?1:0) * (frame_header_size + TMIO_PROTOCOL_SIZE)));
     assert(stream->tagreads == (exp_read_tags += 1));
 
     // 2. check data size
@@ -114,37 +111,37 @@ tmio_stream *main_reader(const char* name, const char* peer, int count)
     assert(stream->datareads == (exp_read_data += 1));
 
     // 3. check datashort : reading less than requested
-    assert(stream->datashorts == iters);
+    assert(stream->datashorts == iterations);
     assert(tmio_read_data(stream, buffer, LONG_MSG_SIZE) == SHORT_MSG_SIZE);
     assert(stream->bytesread == (exp_read_bytes += frame_header_size + SHORT_MSG_SIZE));
     assert(stream->datareads == (exp_read_data += 1));
-    assert(stream->datashorts == iters+1);
+    assert(stream->datashorts == iterations+1);
 
     // 4. check datatrunc : reading more than expected, skipping non-requested
-    assert(stream->datatruncs == iters);
+    assert(stream->datatruncs == iterations);
     assert(tmio_read_data(stream, buffer, SHORT_MSG_SIZE) == LONG_MSG_SIZE);
     assert(stream->bytesread == (exp_read_bytes += frame_header_size + SHORT_MSG_SIZE));
     assert(stream->bytesskipped == (exp_skipped_bytes += SHORT_MSG_SIZE));
     assert(stream->datareads == (exp_read_data += 1));
-    assert(stream->datatruncs == iters+1);
+    assert(stream->datatruncs == iterations+1);
 
     // 5. check dataskip : looking for a tag, but there is still data left
-    assert(stream->dataskipped == iters);
+    assert(stream->dataskipped == iterations);
     assert(tmio_read_tag(stream) == TAG);
     assert(stream->bytesread == (exp_read_bytes += frame_header_size));
     assert(stream->bytesskipped == (exp_skipped_bytes += frame_header_size + SHORT_MSG_SIZE));
     assert(stream->tagreads == (exp_read_tags += 1));
-    assert(stream->dataskipped == iters+1);
+    assert(stream->dataskipped == iterations+1);
 
     // 6. check datamissing : reading non-existant data until following tag
-    assert(stream->datamissing == iters);
+    assert(stream->datamissing == iterations);
     assert(tmio_read_data(stream, buffer, SHORT_MSG_SIZE) == -2);
-    assert(stream->datamissing == iters+1);
+    assert(stream->datamissing == iterations+1);
     assert(tmio_read_tag(stream) == TAG);
     assert(stream->bytesread == (exp_read_bytes += frame_header_size));
     assert(stream->tagreads == (exp_read_tags += 1));
 
-    iters++;
+    iterations++;
   }
 
   // -1. check on-disk size

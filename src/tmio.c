@@ -132,7 +132,7 @@ typedef struct {
   int iobufsize;  // Size of the I/O buffer in Byte
 
   char protocol[TMIO_PROTOCOL_SIZE];  // Protocol identifier
-  char current_protocol[TMIO_PROTOCOL_SIZE];  // Protocol identifier read from the stream
+  char stream_protocol[TMIO_PROTOCOL_SIZE];  // Protocol identifier read from the stream
   char skipbuf[TMIO_SKIPBUF_SIZE];  // Scratch buffer used for skipping data frames
 
   // Statistics
@@ -432,17 +432,17 @@ static int tmio_read_protocol(tmio_stream *stream)
 
   stream->bytesread += TMIO_PROTOCOL_SIZE;
 
-  // Copy input into current_protocol before checking such that the user
+  // Copy input into stream_protocol before checking such that the user
   // can inspect which protocol has been received. We never touch the last
-  // byte of current_protocol, which is calloc()ed to zero in tmio_init().
-  memcpy(stream->current_protocol, protocol, TMIO_PROTOCOL_SIZE - 1);
+  // byte of stream_protocol, which is calloc()ed to zero in tmio_init().
+  memcpy(stream->stream_protocol, protocol, TMIO_PROTOCOL_SIZE - 1);
 
   // Compare up to strlen(requested protocol) bytes
-  if (strcmp(stream->current_protocol, stream->protocol) != 0) {
+  if (strcmp(stream->stream_protocol, stream->protocol) != 0) {
     stream->status = TMIO_EPROTO;
     if (stream->debug)
       fprintf(stderr, "tmio_read_protocol: peer has wrong protocol %s,"
-              "expected %s\n", stream->current_protocol, stream->protocol);
+              "expected %s\n", stream->stream_protocol, stream->protocol);
     return -1;
   }
 
@@ -1087,7 +1087,7 @@ Returns a pointer to the protocol identifier that has been requested
 with `tmio_init()`.
 
 After calling `tmio_open()` to open a stream for reading you may access the
-protocol identifier that has been received using `tmio_current_protocol()`.
+protocol identifier that has been received using `tmio_stream_protocol()`.
 
 //----------------------------------------------------------------------------*/
 {
@@ -1096,7 +1096,7 @@ protocol identifier that has been received using `tmio_current_protocol()`.
 
 /*=== Function ===============================================================*/
 
-const char *tmio_current_protocol(tmio_stream *stream)
+const char *tmio_stream_protocol(tmio_stream *stream)
 
 /*--- Description ------------------------------------------------------------//
 
@@ -1110,7 +1110,7 @@ streams.
 
 //----------------------------------------------------------------------------*/
 {
-  return stream->current_protocol;
+  return stream->stream_protocol;
 }
 
 /*=== Function ===============================================================*/

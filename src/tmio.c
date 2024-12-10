@@ -418,7 +418,7 @@ TMIO_EHANDSHAKE Error while writing protocol identifier
    TMIO_EHANDSHAKE Error while reading protocol identifier
    TMIO_EPROTO     Protocols do not match
 */
-static int tmio_read_protocol(tmio_stream *stream)
+static int tmio_read_and_match_protocol(tmio_stream *stream)
 {
   buftcpfile *fp = (buftcpfile *) stream->f;
 
@@ -426,7 +426,7 @@ static int tmio_read_protocol(tmio_stream *stream)
   if (buftcpread(protocol, TMIO_PROTOCOL_SIZE, fp) != TMIO_PROTOCOL_SIZE) {
     stream->status = TMIO_EHANDSHAKE;
     if (stream->debug)
-      fprintf(stderr, "tmio_read_protocol: protocol read failed");
+      fprintf(stderr, "tmio_read_and_match_protocol: protocol read failed");
     return -1;
   }
 
@@ -438,16 +438,16 @@ static int tmio_read_protocol(tmio_stream *stream)
   memcpy(stream->stream_protocol, protocol, TMIO_PROTOCOL_SIZE - 1);
 
   // Compare up to strlen(requested protocol) bytes
-  if (strcmp(stream->stream_protocol, stream->protocol) != 0) {
+  if (strncmp(stream->stream_protocol, stream->protocol, strlen(stream->protocol)) != 0) {
     stream->status = TMIO_EPROTO;
     if (stream->debug)
-      fprintf(stderr, "tmio_read_protocol: peer has wrong protocol %s,"
+      fprintf(stderr, "tmio_read_and_match_protocol: peer has wrong protocol %s,"
               "expected %s\n", stream->stream_protocol, stream->protocol);
     return -1;
   }
 
   if (stream->debug > 1)
-    fprintf(stderr, "tmio_read_protocol: protocol handshake successful: %s\n",
+    fprintf(stderr, "tmio_read_and_match_protocol: protocol handshake successful: %s\n",
             protocol);
 
   return 0;
@@ -514,7 +514,7 @@ TMIO_EPROTO     Protocols do not match
   }
   stream->bytesread += sizeof(protocol_tag);
 
-  if (tmio_read_protocol(stream)) {
+  if (tmio_read_and_match_protocol(stream)) {
     tmio_close(stream);
     return -1;
   }
@@ -886,7 +886,7 @@ TMIO_EPROTO     Protocols do not match
       // Received a tag
       if (frame_header == TMIO_PROTOCOL_TAG) {
         stream->bytesread += sizeof(frame_header);
-        if (tmio_read_protocol(stream))
+        if (tmio_read_and_match_protocol(stream))
           return -1;  // protocol does not match
         continue;  // wait for next tag
       } else if (-frame_header > TMIO_MAX_TAG) {

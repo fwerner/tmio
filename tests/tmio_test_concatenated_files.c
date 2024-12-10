@@ -84,7 +84,7 @@ void main_writer(const char* name, const char* peer)
   tmio_delete(stream);
 }
 
-void main_reader(const char* name, const char* peer, int count)
+tmio_stream *main_reader(const char* name, const char* peer, int count)
 {
   unsigned long exp_read_bytes = 0;
   unsigned long exp_skipped_bytes = 0;
@@ -92,9 +92,12 @@ void main_reader(const char* name, const char* peer, int count)
   int exp_read_data = 0;
 
   tmio_stream *stream = tmio_init(name, protocol_timeout, buffersize, verbosity);
+  assert(strcmp(tmio_protocol(stream), name) == 0);
+  assert(strlen(tmio_stream_protocol(stream)) == 0);
   assert(tmio_open(stream, peer, connect_timeout) == TMIO_FILE);
 
-  // 0. check init protocol size
+  // 0. check init protocol match and size
+  assert(strncmp(tmio_stream_protocol(stream), name, strlen(name)) == 0);
   assert(stream->bytesread == (exp_read_bytes += frame_header_size + TMIO_PROTOCOL_SIZE));
 
   int iters = 0;
@@ -147,7 +150,7 @@ void main_reader(const char* name, const char* peer, int count)
   // -1. check on-disk size
   assert(stream->bytesread + stream->bytesskipped == filesize(peer));
 
-  tmio_delete(stream);
+  return stream;
 }
 
 int append_file(const char* destination_filename, const char* source_filename, int count) {
@@ -188,16 +191,25 @@ int main(int argc, const char* argv[])
   if (argc < 2)
     return 1;
 
-  const char* tempfile = "tmio_test_file.dat";
-  remove(argv[1]);
-  remove(tempfile);
-  main_writer(argv[0], tempfile);
-
-  assert(append_file(argv[1], tempfile, 2) == 0);
-  main_reader(argv[0], argv[1], 2);
+  const char* tempfile0 = "tmio_test_file_0.dat";
+  const char* tempfile1 = "tmio_test_file_1.dat";
 
   remove(argv[1]);
-  remove(tempfile);
+  remove(tempfile0);
+  remove(tempfile1);
+
+  main_writer("TMIOTestv1.0", tempfile0);
+  main_writer("TMIOTestv1.1", tempfile1);
+
+  assert(append_file(argv[1], tempfile0, 1) == 0);
+  assert(append_file(argv[1], tempfile1, 1) == 0);
+  tmio_stream *stream = main_reader("TMIOTestv1.", argv[1], 2);
+  assert(strcmp(tmio_stream_protocol(stream), "TMIOTestv1.1") == 0);
+  tmio_delete(stream);
+
+  remove(argv[1]);
+  remove(tempfile0);
+  remove(tempfile1);
 
   return 0;
 }
